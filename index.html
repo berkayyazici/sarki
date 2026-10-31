@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Şarkıyı Bil</title>
+<style>
+:root{--bg:#fafaf7;--card:#fff;--tx:#1c1c1a;--mu:#76766f;--ac:#6d4aff;--ok:#1f9d55;--no:#d64545;--bd:#e4e4de;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15151a;--card:#1f1f27;--tx:#f1f1ee;--mu:#9a9aa5;--ac:#9b83ff;--ok:#4cc77f;--no:#ff7070;--bd:#2f2f3a}}
+:root[data-theme="dark"]{--bg:#15151a;--card:#1f1f27;--tx:#f1f1ee;--mu:#9a9aa5;--ac:#9b83ff;--ok:#4cc77f;--no:#ff7070;--bd:#2f2f3a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;max-width:480px;margin:0 auto;padding:16px}
+.top{display:flex;justify-content:space-between;font-size:14px;color:var(--mu)}
+.top b{color:var(--tx)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px;margin-top:14px}
+h1{font-size:22px;margin:4px 0 6px}
+p{margin:6px 0;color:var(--mu);line-height:1.45;font-size:14px}
+button{font:inherit;border:0;border-radius:12px;padding:13px 16px;cursor:pointer;background:var(--ac);color:#fff;font-weight:600}
+button.g{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+button:disabled{opacity:.4}
+.play{width:84px;height:84px;border-radius:50%;font-size:30px;display:block;margin:6px auto 14px}
+.steps{display:flex;gap:6px;margin-bottom:14px}
+.steps i{flex:1;height:6px;border-radius:3px;background:var(--bd)}
+.steps i.on{background:var(--ac)}
+.row{display:flex;gap:8px;margin-top:10px}
+.row button{flex:1}
+input{width:100%;font:inherit;font-size:16px;padding:13px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+ul{list-style:none;margin:6px 0 0;padding:0;border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+ul:empty{display:none}
+li{padding:11px 13px;border-bottom:1px solid var(--bd);cursor:pointer;font-size:15px}
+li:last-child{border:0}
+li small{display:block;color:var(--mu);font-size:12px}
+li.s{background:var(--ac);color:#fff}li.s small{color:#fff}
+.msg{min-height:20px;font-size:14px;margin-top:8px}
+.ok{color:var(--ok)}.no{color:var(--no)}
+.big{font-size:44px;font-weight:700;text-align:center;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="top"><span>Şarkı <b id="rn">0</b>/10</span><span>Seri <b id="st">0</b></span><span>Puan <b id="sc">0</b></span></div>
+<div id="app"></div>
+<script>
+// HİT KATALOĞU — ses, iTunes Search API'den (30 sn'lik resmi önizleme) çekilir.
+const L=`Blinding Lights|The Weeknd
+Shape of You|Ed Sheeran
+Someone You Loved|Lewis Capaldi
+Dance Monkey|Tones and I
+Sunflower|Post Malone
+Rockstar|Post Malone
+One Dance|Drake
+Closer|The Chainsmokers
+Perfect|Ed Sheeran
+Thinking Out Loud|Ed Sheeran
+As It Was|Harry Styles
+Watermelon Sugar|Harry Styles
+Bad Guy|Billie Eilish
+Levitating|Dua Lipa
+Believer|Imagine Dragons
+Uptown Funk|Mark Ronson
+Despacito|Luis Fonsi
+Bohemian Rhapsody|Queen
+Billie Jean|Michael Jackson
+Smells Like Teen Spirit|Nirvana
+Take On Me|a-ha
+Hotel California|Eagles
+Sweet Child O' Mine|Guns N' Roses
+Mr. Brightside|The Killers
+Shake It Off|Taylor Swift
+Rolling in the Deep|Adele
+Happy|Pharrell Williams
+Lose Yourself|Eminem
+Havana|Camila Cabello
+Seven Nation Army|The White Stripes
+Africa|Toto
+Wonderwall|Oasis
+Poker Face|Lady Gaga
+Gangnam Style|PSY
+Counting Stars|OneRepublic
+Şımarık|Tarkan
+Kuzu Kuzu|Tarkan
+Dudu|Tarkan
+Yolla|Tarkan
+Everyway That I Can|Sertab Erener
+Gülpembe|Barış Manço
+Dönence|Barış Manço
+Firuze|Sezen Aksu
+Hadi Bakalım|Sezen Aksu
+Gülümse|Sezen Aksu
+Bir Derdim Var|Mor ve Ötesi
+Bu Akşam|Duman
+Düm Tek Tek|Hadise
+Yaparım Bilirsin|Kenan Doğulu
+Karlar Kraliçesi|Mabel Matiz
+Bambaşka Biri|Ajda Pekkan
+Papatya|Teoman`.split("\n").map(x=>x.split("|"));
+const S=L.map(x=>({t:x[0],a:x[1]}));
+const CAT=S.map((s,i)=>({id:i,t:s.t,a:s.a}));
+const D=[.1,1,2,3,4,5],P=[1000,800,600,400,250,100];
+const norm=s=>s.toLowerCase().replace(/ı/g,"i").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+let q,i,stage,score=0,streak=0,sel=null,done=false,ctx,nodes=[];
+const $=id=>document.getElementById(id),app=$("app");
+
+function intro(){app.innerHTML=`<div class="card"><h1>Şarkıyı Bil 🎵</h1><p>Şarkının ilk 0,1 saniyesini dinle, bil. Bilemezsen süreyi uzat; ama puan düşer.</p><div class="row"><button id="go">Başla</button></div></div>`;$("go").onclick=start}
+async function start(){
+ ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();ctx.resume();
+ const ord=[...S.keys()].sort(()=>Math.random()-.5);q=[];score=0;streak=0;i=0;hud();
+ app.innerHTML=`<div class="card"><h1>Hazırlanıyor…</h1><p id="ld">Şarkılar yükleniyor</p></div>`;
+ for(const k of ord){if(q.length>=10)break;if(await load(S[k]))q.push(k);$("ld").textContent=q.length+"/10 şarkı hazır"}
+ if(q.length<3){app.innerHTML=`<div class="card"><h1 class="no">Şarkılar yüklenemedi</h1><p>iTunes önizlemelerine erişilemedi (neden: ${why||"bilinmiyor"}). Sayfayı claude.ai önizlemesi yerine tarayıcıda (Safari/Chrome) veya kendi sitende aç ve internet bağlantını kontrol et.</p><div class="row"><button id="rt">Tekrar dene</button></div></div>`;$("rt").onclick=start;return}
+ round()}
+let why="";
+function jsonp(u){return new Promise((ok,no)=>{const n="cb"+Math.random().toString(36).slice(2),sc=document.createElement("script");
+ const t=setTimeout(()=>{cl();no(new Error("zaman aşımı"))},8000);
+ const cl=()=>{clearTimeout(t);delete window[n];sc.remove()};
+ window[n]=d=>{cl();ok(d)};sc.onerror=()=>{cl();no(new Error("arama engellendi"))};
+ sc.src=u+"&callback="+n;document.head.appendChild(sc)})}
+function elAudio(url){return new Promise((ok,no)=>{const a=new Audio();a.preload="auto";
+ const t=setTimeout(()=>no(new Error("ses yüklenemedi")),9000);
+ a.oncanplay=()=>{clearTimeout(t);ok(a)};a.onerror=()=>{clearTimeout(t);no(new Error("ses engellendi"))};a.src=url;a.load()})}
+async function load(s){
+ if(s.buf||s.el)return true;
+ try{
+  const j=((await jsonp("https://itunes.apple.com/search?media=music&entity=song&limit=5&country=TR&term="+encodeURIComponent(s.t+" "+s.a))).results)||[],w=norm(s.a).split(" ")[0];
+  const m=j.find(x=>x.previewUrl&&norm(x.artistName).includes(w))||j.find(x=>x.previewUrl);
+  if(!m){why="eşleşme yok";return false}
+  try{
+   const b=await ctx.decodeAudioData(await (await fetch(m.previewUrl)).arrayBuffer());
+   const d=b.getChannelData(0);let k=0;while(k<d.length&&Math.abs(d[k])<.02)k++;
+   s.buf=b;s.off=k/b.sampleRate;
+  }catch(e){s.el=await elAudio(m.previewUrl);s.off=0}
+  return true;
+ }catch(e){why=e.message;return false}
+}
+
+function round(){stage=0;sel=null;done=false;draw();play()}
+function hud(){$("rn").textContent=Math.min(i+1,10);$("st").textContent=streak;$("sc").textContent=score}
+
+function draw(){
+ hud();
+ app.innerHTML=`<div class="card">
+ <div class="steps">${D.map((d,k)=>`<i class="${k<=stage?"on":""}"></i>`).join("")}</div>
+ <button class="play" id="pl" aria-label="Dinle">▶</button>
+ <p style="text-align:center">Dinlenen süre: <b>${D[stage]} sn</b> · Kazanılacak: <b>${P[stage]}</b> puan</p>
+ <input id="in" placeholder="Şarkı adı veya sanatçı yaz…" autocomplete="off" autocapitalize="off">
+ <ul id="ls"></ul><div class="msg" id="mg"></div>
+ <div class="row"><button id="gs">Tahmin et</button></div>
+ <div class="row"><button class="g" id="ex" ${stage>=5?"disabled":""}>Süreyi uzat</button><button class="g" id="ps">Pas</button></div></div>`;
+ $("pl").onclick=play;$("in").oninput=sug;$("gs").onclick=guess;
+ $("ex").onclick=()=>{stage++;draw();play()};$("ps").onclick=()=>reveal(false,true);
+ $("in").onkeydown=e=>{if(e.key==="Enter")guess()};
+}
+function sug(){
+ sel=null;const v=norm($("in").value),ls=$("ls");
+ if(v.length<1){ls.innerHTML="";return}
+ const m=CAT.filter(c=>norm(c.t).includes(v)||norm(c.a).includes(v)).slice(0,5);
+ ls.innerHTML=m.map(c=>`<li data-id="${c.id}">${c.t}<small>${c.a}</small></li>`).join("");
+ ls.querySelectorAll("li").forEach(l=>l.onclick=()=>{sel=+l.dataset.id;const c=CAT.find(x=>x.id===sel);$("in").value=c.t;ls.querySelectorAll("li").forEach(x=>x.classList.remove("s"));l.classList.add("s");$("mg").textContent="";ls.innerHTML=`<li class="s">${c.t}<small>${c.a}</small></li>`});
+}
+function guess(){
+ if(sel===null){const m=CAT.find(c=>norm(c.t)===norm($("in").value));if(m)sel=m.id}
+ if(sel===null){$("mg").innerHTML='<span class="no">Önce listeden bir şarkı seç.</span>';return}
+ if(sel===q[i])reveal(true);
+ else{score-=50;streak=0;hud();$("mg").innerHTML='<span class="no">Yanlış! −50 puan. Süreyi uzatmayı dene.</span>';sel=null;$("in").value="";$("ls").innerHTML=""}
+}
+function reveal(ok,pass){
+ stop();let gain=0,mult=1;
+ if(ok){streak++;mult=streak>=3?2:streak===2?1.5:1;gain=Math.round(P[stage]*mult);score+=gain}
+ else streak=0;
+ const s=S[q[i]];hud();
+ app.innerHTML=`<div class="card"><h1 class="${ok?"ok":"no"}">${ok?"Doğru! 🎉":"Pas geçildi"}</h1>
+ <p style="font-size:18px;color:var(--tx)"><b>${s.t}</b><br>${s.a}</p>
+ <div class="big">${ok?"+"+gain:"0"}</div>
+ <p style="text-align:center">${ok?`${D[stage]} sn · seri çarpanı x${mult}`:"Bu şarkıdan puan yok"}</p>
+ <div class="row"><button class="g" id="rp">▶ Tamamını dinle</button><button id="nx">${i>=9?"Bitir":"Sonraki"}</button></div></div>`;
+ $("rp").onclick=()=>play(true);$("nx").onclick=()=>{i++;i>=10?end():round()};
+}
+function end(){
+ stop();hud();
+ app.innerHTML=`<div class="card"><h1>Oyun bitti</h1><div class="big">${score}</div><p style="text-align:center">toplam puan</p><div class="row"><button id="ag">Tekrar oyna</button></div></div>`;
+ $("ag").onclick=start;
+}
+
+// SES: Web Audio ile tam süre kontrolü
+let cur=null,tm=null;
+function stop(){nodes.forEach(n=>{try{n.stop()}catch(e){}});nodes=[];clearTimeout(tm);if(cur){cur.pause();cur=null}}
+function play(full){
+ stop();ctx.resume();const s=S[q[i]],dur=full?30:D[stage];
+ if(s.buf){
+  const src=ctx.createBufferSource(),g=ctx.createGain(),t=ctx.currentTime+.02;
+  src.buffer=s.buf;src.connect(g);g.connect(ctx.destination);
+  if(!full){g.gain.setValueAtTime(1,t+dur-.01);g.gain.linearRampToValueAtTime(0,t+dur)}
+  src.start(t,s.off,dur);nodes.push(src);
+ }else{
+  const a=s.el;cur=a;a.currentTime=s.off;a.volume=1;a.play().catch(()=>{});
+  if(!full)tm=setTimeout(()=>{a.pause();if(cur===a)cur=null},dur*1000);
+ }
+}
+intro();
+</script>
+</body>
+</html>
